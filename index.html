@@ -14,6 +14,8 @@ select{padding:9px 12px;font-size:12px;border-radius:6px;border:1px solid #bbb;b
 .pin{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;display:flex;flex-direction:column;align-items:center;padding:4px 6px;border-radius:4px;background:rgba(255,255,255,0.65);box-shadow:0 1px 2px rgba(0,0,0,.12);pointer-events:auto;text-align:center}
 .pin img{width:18px;height:12px;display:inline-block;margin-bottom:2px}
 #status{font-size:11px;color:#555;margin-top:5px}
+#source{font-size:10px;color:#555;margin:6px auto;max-width:800px;}
+#source a{color:#2b7cff;text-decoration:none;}
 </style>
 </head>
 <body>
@@ -22,18 +24,23 @@ select{padding:9px 12px;font-size:12px;border-radius:6px;border:1px solid #bbb;b
 
 <div id="controls">
 <select id="stat">
-<option value="GDP">GDP (US$B)</option>
-<option value="GDPpc">GDP per capita (US$)</option>
-<option value="Infl">Inflation (%)</option>
-<option value="Unemp">Unemployment (%)</option>
+  <option value="">Select KPI…</option>
+  <option value="GDP">GDP (US$B)</option>
+  <option value="GDPpc">GDP per capita (US$)</option>
+  <option value="Infl">Inflation (%)</option>
+  <option value="Unemp">Unemployment (%)</option>
 </select>
 <select id="year">
-<option>Loading...</option>
+  <option>–</option>
 </select>
 </div>
 
 <div id="mapWrap">
 <img id="mapImg" src="https://raw.githubusercontent.com/aceg-pl/tr/main/Europe.png" alt="Europe map">
+</div>
+
+<div id="source">
+  Data source: <a href="https://data.worldbank.org/" target="_blank">World Bank</a>
 </div>
 
 <div id="status">Ready.</div>
@@ -65,7 +72,13 @@ function scalePins(){
   });
 }
 
-function fmt(v,stat){if(v==null||v==='?')return'–';if(stat==='GDP')return (v/1e9).toFixed(0)+'B';if(stat==='GDPpc')return Math.round(v).toLocaleString();if(stat==='Infl'||stat==='Unemp')return (Math.round(v*10)/10)+'%';return v;}
+function fmt(v,stat){
+  if(v==null||v==='?') return '–';
+  if(stat==='GDP') return (v/1e9).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,".") + 'B';
+  if(stat==='GDPpc') return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g,".");
+  if(stat==='Infl'||stat==='Unemp') return (Math.round(v*10)/10)+'%';
+  return v;
+}
 
 function trendArrow(lat,prev){
   if(lat==null||prev==null)return'';
@@ -77,13 +90,12 @@ function colorScale(val,min,max,reverse=false){
   if(val==null)return'rgba(200,200,200,0.6)';
   let t=(val-min)/(max-min); t=Math.max(0, Math.min(1, t));
   if(reverse) t=1-t;
-  const h=120*(1-t);           // green → red
-  const s=50+10*t;              // softer saturation
-  const l=65-15*t;              // lighter for softer look
+  const h=120*(1-t);
+  const s=50+10*t;
+  const l=65-15*t;
   return `hsl(${h},${s}%,${l}%)`;
 }
 
-/* fetch World Bank data */
 async function wbFetch(cc,indicator){
   try{
     const r=await fetch(`https://api.worldbank.org/v2/country/${cc.toLowerCase()}/indicator/${indicator}?format=json&per_page=6&date=2000:2025`);
@@ -94,17 +106,15 @@ async function wbFetch(cc,indicator){
   }catch(e){return[];}
 }
 
-/* populate dynamic year dropdown */
 async function loadYears(){
   const sample=PLACES[0];
   const data=await wbFetch(sample.code,WB_IND[statSelect.value]);
   yearSelect.innerHTML='';
-  if(!data.length) return;
+  if(!data.length) {yearSelect.innerHTML=`<option>–</option>`; return;}
   yearSelect.innerHTML=`<option value="0">Latest</option>`;
   for(let i=1;i<data.length;i++){yearSelect.innerHTML+=`<option value="${i}">Period -${i}</option>`;}
 }
 
-/* update title/header with numeric year */
 function updateTitle(allData){
   const period = parseInt(yearSelect.value);
   let year = '–';
@@ -118,8 +128,8 @@ function updateTitle(allData){
   document.querySelector('h1').textContent = `EU Macro (${year})`;
 }
 
-/* show stat for selected stat and period */
 async function showStat(){
+  if(!statSelect.value) return;
   document.querySelectorAll('.pin').forEach(n=>n.remove());
   const statKey=statSelect.value;
   const period=parseInt(yearSelect.value);
@@ -127,21 +137,4 @@ async function showStat(){
   const vals=[];const allData={};
   for(const p of PLACES){const d=await wbFetch(p.code,WB_IND[statKey]);allData[p.code]=d;const r=d[period]||{};vals.push(r.value);}
   const min=Math.min(...vals.filter(v=>v!=null)),max=Math.max(...vals.filter(v=>v!=null));
-  for(const p of PLACES){
-    const d=allData[p.code];const r=d[period]||{};const prev=d[period+1]?d[period+1].value:null;
-    const val=fmt(r.value,statKey)+trendArrow(r.value,prev);
-    let rev=false;if(statKey==='Infl'||statKey==='Unemp')rev=true;
-    placePin(p,val,colorScale(r.value,min,max,rev));scalePins();
-  }
-  status.textContent='Done.';
-  updateTitle(allData);
-}
-
-/* auto-refresh on change */
-statSelect.addEventListener('change',async()=>{await loadYears();showStat();});
-yearSelect.addEventListener('change',showStat);
-window.addEventListener('resize',scalePins);
-img.addEventListener('load',async()=>{await loadYears();showStat();});
-</script>
-</body>
-</html>
+  for(const
