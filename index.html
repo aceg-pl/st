@@ -51,6 +51,7 @@ const flagURL=c=>`https://flagcdn.com/24x18/${c.toLowerCase()}.png`;
 const mapWrap=document.getElementById('mapWrap'),img=document.getElementById('mapImg'),status=document.getElementById('status');
 const statSelect=document.getElementById('stat'),yearSelect=document.getElementById('year');
 const WB_IND={GDP:'NY.GDP.MKTP.CD',GDPpc:'NY.GDP.PCAP.CD',Infl:'FP.CPI.TOTL.ZG',Unemp:'SL.UEM.TOTL.ZS'};
+const REVERSE_GREEN=['Infl','Unemp'];
 
 function placePin(p,val,color){
   const imgRect=img.getBoundingClientRect();
@@ -89,8 +90,8 @@ function trendArrow(lat,prev){
 function colorScale(val,min,max,reverse=false){
   if(val==null)return'rgba(200,200,200,0.6)';
   let t=(val-min)/(max-min); t=Math.max(0, Math.min(1, t));
-  if(reverse) t=1-t;
-  const h=120*(1-t);
+  if(reverse) t=1-t; // lower is greener
+  const h=120*t; // 0=red, 120=green
   const s=50+10*t;
   const l=65-15*t;
   return `hsl(${h},${s}%,${l}%)`;
@@ -140,7 +141,7 @@ async function showStat(){
   for(const p of PLACES){
     const d=allData[p.code];const r=d[period]||{};const prev=d[period+1]?d[period+1].value:null;
     const val=fmt(r.value,statKey)+trendArrow(r.value,prev);
-    let rev=false;if(statKey==='Infl'||statKey==='Unemp')rev=true;
+    let rev = REVERSE_GREEN.includes(statKey); // lower is greener
     placePin(p,val,colorScale(r.value,min,max,rev));scalePins();
   }
   status.textContent='Done.';
