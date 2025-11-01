@@ -46,46 +46,94 @@ const statSelect=document.getElementById('stat'),yearSelect=document.getElementB
 const WB_IND={GDP:'NY.GDP.MKTP.CD',GDPpc:'NY.GDP.PCAP.CD',Infl:'FP.CPI.TOTL.ZG',Unemp:'SL.UEM.TOTL.ZS'};
 
 function placePin(p,val,color){
-const imgRect=img.getBoundingClientRect();
-const el=document.createElement('div');el.className='pin';
-el.style.left=Math.round(p.x/100*imgRect.width)+'px';
-el.style.top=Math.round(p.y/100*imgRect.height)+'px';
-el.style.background=color;
-el.innerHTML=`<div><img src="${flagURL(p.cc)}" alt="${p.code}"><strong>${p.code}</strong></div><div>${val}</div>`;
-mapWrap.appendChild(el);return el;
+  const imgRect=img.getBoundingClientRect();
+  const el=document.createElement('div');el.className='pin';
+  el.style.left=Math.round(p.x/100*imgRect.width)+'px';
+  el.style.top=Math.round(p.y/100*imgRect.height)+'px';
+  el.style.background=color;
+  el.innerHTML=`<div><img src="${flagURL(p.cc)}" alt="${p.code}"><strong>${p.code}</strong></div><div>${val}</div>`;
+  mapWrap.appendChild(el);return el;
 }
-function scalePins(){const w=img.clientWidth;const base=Math.max(10,Math.round(w/60));mapWrap.querySelectorAll('.pin').forEach(p=>{p.style.fontSize=base+'px';const imgTag=p.querySelector('img');if(imgTag){imgTag.style.width=Math.max(12,Math.round(base*1.2))+'px';imgTag.style.height=Math.max(8,Math.round(base*0.8))+'px';}});}
+
+function scalePins(){
+  const w=img.clientWidth;const base=Math.max(10,Math.round(w/60));
+  mapWrap.querySelectorAll('.pin').forEach(p=>{
+    p.style.fontSize=base+'px';
+    const imgTag=p.querySelector('img');
+    if(imgTag){imgTag.style.width=Math.max(12,Math.round(base*1.2))+'px';
+    imgTag.style.height=Math.max(8,Math.round(base*0.8))+'px';}
+  });
+}
+
 function fmt(v,stat){if(v==null||v==='?')return'–';if(stat==='GDP')return (v/1e9).toFixed(0)+'B';if(stat==='GDPpc')return Math.round(v).toLocaleString();if(stat==='Infl'||stat==='Unemp')return (Math.round(v*10)/10)+'%';return v;}
-function trendArrow(lat,prev){if(lat==null||prev==null)return'';const a=Number(lat),b=Number(prev);if(isNaN(a)||isNaN(b))return'';return Math.abs(a-b)<=Math.abs(b)*0.005?' →':a>b?'⬆️':'⬇️';}
-function colorScale(val,min,max,reverse=false){if(val==null)return'rgba(200,200,200,0.6)';let t=(val-min)/(max-min);t=Math.max(0,Math.min(1,t));if(reverse)t=1-t;const h=120*(1-t);return`hsl(${h},60%,85%)`;}
+
+function trendArrow(lat,prev){
+  if(lat==null||prev==null)return'';
+  const a=Number(lat),b=Number(prev);if(isNaN(a)||isNaN(b))return'';
+  return Math.abs(a-b)<=Math.abs(b)*0.005?' →':a>b?'⬆️':'⬇️';
+}
+
+function colorScale(val,min,max,reverse=false){
+  if(val==null)return'rgba(200,200,200,0.6)';
+  let t=(val-min)/(max-min);t=Math.max(0,Math.min(1,t));
+  if(reverse)t=1-t;
+  const h=120*(1-t);           // green→red
+  const s=70+15*t;             // saturation
+  const l=55-20*t;             // lightness (darker for intensity)
+  return `hsl(${h},${s}%,${l}%)`;
+}
 
 /* fetch World Bank data */
-async function wbFetch(cc,indicator){try{const r=await fetch(`https://api.worldbank.org/v2/country/${cc.toLowerCase()}/indicator/${indicator}?format=json&per_page=6&date=2000:2025`);const j=await r.json();const data=j[1].filter(d=>d.value!==null);if(!data.length)return[];return data.slice(0,4);}catch(e){return[];}}
+async function wbFetch(cc,indicator){
+  try{
+    const r=await fetch(`https://api.worldbank.org/v2/country/${cc.toLowerCase()}/indicator/${indicator}?format=json&per_page=6&date=2000:2025`);
+    const j=await r.json();
+    const data=j[1].filter(d=>d.value!==null);
+    if(!data.length)return[];
+    return data.slice(0,4);
+  }catch(e){return[];}
+}
 
 /* populate dynamic year dropdown */
-async function loadYears(){const sample=PLACES[0];const data=await wbFetch(sample.code,WB_IND[statSelect.value]);yearSelect.innerHTML='';if(!data.length)return;yearSelect.innerHTML=`<option value="0">Latest</option>`;
-for(let i=1;i<data.length;i++){yearSelect.innerHTML+=`<option value="${i}">Period -${i}</option>`;}
+async function loadYears(){
+  const sample=PLACES[0];
+  const data=await wbFetch(sample.code,WB_IND[statSelect.value]);
+  yearSelect.innerHTML='';
+  if(!data.length) return;
+  yearSelect.innerHTML=`<option value="0">Latest</option>`;
+  for(let i=1;i<data.length;i++){yearSelect.innerHTML+=`<option value="${i}">Period -${i}</option>`;}
+}
+
+/* update page title/header */
+function updateTitle(){
+  const yearText = yearSelect.options[yearSelect.selectedIndex].text;
+  document.title = `EU Macro — ${yearText}`;
+  document.querySelector('h1').textContent = `EU Macro (${yearText})`;
 }
 
 /* show stat for selected stat and period */
 async function showStat(){
-document.querySelectorAll('.pin').forEach(n=>n.remove());
-const statKey=statSelect.value;
-const period=parseInt(yearSelect.value);
-status.textContent=`Loading ${statKey}...`;
-const vals=[];const allData={};
-for(const p of PLACES){const d=await wbFetch(p.code,WB_IND[statKey]);allData[p.code]=d;const r=d[period]||{};vals.push(r.value);}
-const min=Math.min(...vals.filter(v=>v!=null)),max=Math.max(...vals.filter(v=>v!=null));
-for(const p of PLACES){
-const d=allData[p.code];const r=d[period]||{};const prev=d[period+1]?d[period+1].value:null;const val=fmt(r.value,statKey)+trendArrow(r.value,prev);let rev=false;if(statKey==='Infl'||statKey==='Unemp')rev=true;placePin(p,val,colorScale(r.value,min,max,rev));scalePins();}
-status.textContent='Done.';
+  document.querySelectorAll('.pin').forEach(n=>n.remove());
+  const statKey=statSelect.value;
+  const period=parseInt(yearSelect.value);
+  status.textContent=`Loading ${statKey}...`;
+  const vals=[];const allData={};
+  for(const p of PLACES){const d=await wbFetch(p.code,WB_IND[statKey]);allData[p.code]=d;const r=d[period]||{};vals.push(r.value);}
+  const min=Math.min(...vals.filter(v=>v!=null)),max=Math.max(...vals.filter(v=>v!=null));
+  for(const p of PLACES){
+    const d=allData[p.code];const r=d[period]||{};const prev=d[period+1]?d[period+1].value:null;
+    const val=fmt(r.value,statKey)+trendArrow(r.value,prev);
+    let rev=false;if(statKey==='Infl'||statKey==='Unemp')rev=true;
+    placePin(p,val,colorScale(r.value,min,max,rev));scalePins();
+  }
+  status.textContent='Done.';updateTitle();
 }
 
 /* auto-refresh on change */
 statSelect.addEventListener('change',async()=>{await loadYears();showStat();});
 yearSelect.addEventListener('change',showStat);
 window.addEventListener('resize',scalePins);
-img.addEventListener('load',()=>{loadYears().then(showStat);});
+img.addEventListener('load',async()=>{await loadYears();showStat();});
 </script>
 </body>
 </html>
