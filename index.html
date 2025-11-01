@@ -75,11 +75,11 @@ function trendArrow(lat,prev){
 
 function colorScale(val,min,max,reverse=false){
   if(val==null)return'rgba(200,200,200,0.6)';
-  let t=(val-min)/(max-min);t=Math.max(0,Math.min(1,t));
-  if(reverse)t=1-t;
-  const h=120*(1-t);           // green→red
-  const s=70+15*t;             // saturation
-  const l=55-20*t;             // lightness (darker for intensity)
+  let t=(val-min)/(max-min); t=Math.max(0, Math.min(1, t));
+  if(reverse) t=1-t;
+  const h=120*(1-t);           // green → red
+  const s=50+10*t;              // softer saturation
+  const l=65-15*t;              // lighter for softer look
   return `hsl(${h},${s}%,${l}%)`;
 }
 
@@ -104,11 +104,18 @@ async function loadYears(){
   for(let i=1;i<data.length;i++){yearSelect.innerHTML+=`<option value="${i}">Period -${i}</option>`;}
 }
 
-/* update page title/header */
-function updateTitle(){
-  const yearText = yearSelect.options[yearSelect.selectedIndex].text;
-  document.title = `EU Macro — ${yearText}`;
-  document.querySelector('h1').textContent = `EU Macro (${yearText})`;
+/* update title/header with numeric year */
+function updateTitle(allData){
+  const period = parseInt(yearSelect.value);
+  let year = '–';
+  if(allData && Object.keys(allData).length){
+    for(const c in allData){
+      const d = allData[c][period];
+      if(d && d.date) { year = d.date; break; }
+    }
+  }
+  document.title = `EU Macro — ${year}`;
+  document.querySelector('h1').textContent = `EU Macro (${year})`;
 }
 
 /* show stat for selected stat and period */
@@ -126,7 +133,8 @@ async function showStat(){
     let rev=false;if(statKey==='Infl'||statKey==='Unemp')rev=true;
     placePin(p,val,colorScale(r.value,min,max,rev));scalePins();
   }
-  status.textContent='Done.';updateTitle();
+  status.textContent='Done.';
+  updateTitle(allData);
 }
 
 /* auto-refresh on change */
